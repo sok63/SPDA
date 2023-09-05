@@ -1,25 +1,33 @@
 #pragma once
 
-struct sDevice
+struct sDeviceLayer
 {
-    int Power;
+    int Helpers;
+    int Managers;
+};
+
+struct sAppLayer
+{
+    int Pin;
     int Screen;
     int Touch;
     int Buttons;
-    int Buses;
-    int Memory;
-};
 
-
-struct sHelpers {
-    int GFX;
+    int Drawer;
     int Geographic;
+
 };
 
+struct sOSLayer
+{
+    int Memory;
+    int Buses;
+};
 
 
 struct sSL
 {
-    sDevice Device;
-    int Helpers;
+    sDeviceLayer DevL;
+    sOSLayer OSL;
+    sAppLayer AppL;
 };
