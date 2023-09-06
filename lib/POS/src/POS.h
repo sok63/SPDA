@@ -20,24 +20,17 @@ static char sbuf[30];
 
 void vScreenTask(void *pvParam)
 {
-
     M5.Display.init_without_reset();
+    M5.Display.setEpdMode(epd_fast);
     M5.Display.clear();
-    // m5::rtc_time_t st = {21,26,30};
-    // M5.Rtc.setTime(st);
 
     while (true)
     {
-
         xTaskNotifyWait(0x00, ULONG_MAX, &ulNotifiedValue, portMAX_DELAY);
 
         M5.Display.powerSave(false);
-
-        // M5.Display.clear();
-        printf("Screen wakeuped\n");
-        // M5.Display.powerSave(false);
-
         M5.Display.startWrite();
+
         // Draw topbar
         // // topbar line
         M5.Display.setColor(0, 0, 0);
@@ -72,8 +65,9 @@ void vScreenTask(void *pvParam)
         // }
 
         M5.Display.endWrite();
-
         M5.Display.powerSave(true);
+        M5.Display.waitDisplay();
+        M5.Display.waitDMA();
         xTaskNotify(state.os, 0, eNoAction);
     }
 };
