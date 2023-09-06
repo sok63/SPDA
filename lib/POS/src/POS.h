@@ -7,6 +7,8 @@
 #include "freertos/FreeRTOS.h"
 #include <freertos/task.h>
 
+#include <esp_sleep.h>
+
 #include "State/State.h"
 #include "Applications/Applications.h"
 
@@ -18,7 +20,7 @@ static char sbuf[30];
 
 void vScreenTask(void *pvParam)
 {
-    M5.begin();
+
     M5.Display.init_without_reset();
     M5.Display.clear();
     // m5::rtc_time_t st = {21,26,30};
@@ -26,9 +28,14 @@ void vScreenTask(void *pvParam)
 
     while (true)
     {
+
         xTaskNotifyWait(0x00, ULONG_MAX, &ulNotifiedValue, portMAX_DELAY);
+
+        M5.Display.powerSave(false);
+
         // M5.Display.clear();
         printf("Screen wakeuped\n");
+        // M5.Display.powerSave(false);
 
         M5.Display.startWrite();
         // Draw topbar
@@ -50,8 +57,8 @@ void vScreenTask(void *pvParam)
         }
         avg_v = avg_v >> 5;
 
-        sprintf(sbuf, "%d\n", avg_v);
-        M5.Display.drawString(sbuf, 540 - 10 - 4 * 20, 5);
+        sprintf(sbuf, "%d:%d\n", M5.Power.getBatteryLevel(), avg_v);
+        M5.Display.drawString(sbuf, 540 - 10 - 7 * 20, 5);
 
         // Time
         auto t = M5.Rtc.getTime();
@@ -66,20 +73,57 @@ void vScreenTask(void *pvParam)
 
         M5.Display.endWrite();
 
-        // M5.Display.startWrite();
+        M5.Display.powerSave(true);
+        xTaskNotify(state.os, 0, eNoAction);
     }
 };
 
 void vOSShedulerTask(void *pvParams)
 {
-    xTaskCreate(vScreenTask, "screen", 4096, NULL, 10, &state.screen);
+    M5.begin();
+    M5.Rtc.begin();
 
-    // Start scheduling
+    xTaskCreate(vScreenTask, "screen", 4096, &state, 10, &state.screen);
+    vTaskDelay(1000 / portTICK_RATE_MS);
+
+    printf("Try to wakeup screen..\n");
+
+    xTaskNotify(state.screen, 0, eNoAction);
+
+    vTaskDelay(1000 / portTICK_RATE_MS);
+
+    M5.Rtc.clearIRQ();
+
+    m5::rtc_time_t t;
+    t.seconds = 5;
+
+    // M5.Rtc.setAlarmIRQ(t);
+    printf("%d\n", M5.Rtc.getIRQstatus() ? 1 : 0);
+
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    //  M5.Power.deepSleep(5000000, false);
+
+    // gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
+    // gpio_set_level(GPIO_NUM_2, 0);
+
+    // gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
+    // gpio_set_level(GPIO_NUM_5, 0);
+
+    // gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);
+    // gpio_set_level(GPIO_NUM_23, 0);
+
+    // esp_light_sleep_start();
+    uint32_t nv;
     while (true)
     {
+
+        // M5.Power.lightSleep(5000000, false);
+        esp_sleep_enable_timer_wakeup(5000000);
+        esp_light_sleep_start();
         xTaskNotify(state.screen, 0, eNoAction);
-        vTaskDelay(5000 / portTICK_RATE_MS);
-        printf("Try to wakeup screen..\n");
+        xTaskNotifyWait(0x00, ULONG_MAX, &nv, portMAX_DELAY);
+        // vTaskDelay(5000 / portTICK_RATE_MS);
     }
+
     vTaskDelete(NULL);
 }

@@ -5,7 +5,7 @@
 extern "C" void app_main(void)
 {
 
-  xTaskCreate(vOSShedulerTask, "os", 4096, NULL, 10, nullptr);
+   xTaskCreate(vOSShedulerTask, "os", 4096, NULL, 10, &state.os);
 
   while (true)
     vTaskDelay(10000);
