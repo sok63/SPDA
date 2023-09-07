@@ -1,3 +1,5 @@
+#pragma once
+
 #include <freertos/task.h>
 
 struct sState {

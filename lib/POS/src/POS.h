@@ -1,13 +1,14 @@
 
-#include <M5Unified.h>
-#include <utility/RTC8563_Class.hpp>
-#include <SL.h>
 #include <string.h>
 
-#include "freertos/FreeRTOS.h"
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 #include <esp_sleep.h>
+
+#include <M5Unified.h>
+
+#include <SL.h>
 
 #include "State/State.h"
 
@@ -23,7 +24,7 @@ void vOSShedulerTask(void *pvParams)
     M5.begin();
     M5.Rtc.begin();
 
-    xTaskCreate(vScreenTask, "screen", 4096, &state, 10, &state.screen);
+    xTaskCreate(vScreenTask, "scr", 4096, &state, 10, &state.screen);
     xTaskCreate(vBatteryTask, "bat", 4096, &state, 9, &state.tBattery);
 
     vTaskDelay(1000 / portTICK_RATE_MS);
