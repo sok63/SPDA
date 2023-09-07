@@ -10,67 +10,13 @@
 #include <esp_sleep.h>
 
 #include "State/State.h"
+
+#include "Tasks/BatteryTask.h"
+#include "Tasks/ScreenTask.h"
+
 #include "Applications/Applications.h"
 
 static sState state;
-
-static uint32_t ulNotifiedValue = 0;
-static uint32_t draw_counter = 0;
-static char sbuf[30];
-
-void vScreenTask(void *pvParam)
-{
-    M5.Display.init_without_reset();
-    M5.Display.setEpdMode(epd_fast);
-    M5.Display.clear();
-
-    while (true)
-    {
-        xTaskNotifyWait(0x00, ULONG_MAX, &ulNotifiedValue, portMAX_DELAY);
-
-        M5.Display.powerSave(false);
-        M5.Display.startWrite();
-
-        // Draw topbar
-        // // topbar line
-        M5.Display.setColor(0, 0, 0);
-        M5.Display.setTextSize(3, 3);
-        M5.Display.drawLine(0, 30, 960, 30);
-
-        // // Counter
-        draw_counter++;
-        sprintf(sbuf, "%d\n", draw_counter);
-        M5.Display.drawString(sbuf, 5, 5);
-
-        // Voltage
-        uint32_t avg_v = 0;
-        for (auto idx = 0; idx < 32; idx++)
-        {
-            avg_v += M5.Power.getBatteryVoltage();
-        }
-        avg_v = avg_v >> 5;
-
-        sprintf(sbuf, "%d:%d\n", M5.Power.getBatteryLevel(), avg_v);
-        M5.Display.drawString(sbuf, 540 - 10 - 7 * 20, 5);
-
-        // Time
-        auto t = M5.Rtc.getTime();
-        sprintf(sbuf, "%02d:%02d:%02d\n", t.hours, t.minutes, t.seconds);
-        M5.Display.drawString(sbuf, 540 / 2 - 80, 5);
-
-        // for(auto idx=0;idx<12;idx++){
-        //     auto x = idx % 3;
-        //     auto y = idx / 3;
-        // M5.Display.fillSmoothRoundRect((x+1)*60, (y+1)*60, 50, 50, 5);
-        // }
-
-        M5.Display.endWrite();
-        M5.Display.powerSave(true);
-        M5.Display.waitDisplay();
-        M5.Display.waitDMA();
-        xTaskNotify(state.os, 0, eNoAction);
-    }
-};
 
 void vOSShedulerTask(void *pvParams)
 {
@@ -78,10 +24,13 @@ void vOSShedulerTask(void *pvParams)
     M5.Rtc.begin();
 
     xTaskCreate(vScreenTask, "screen", 4096, &state, 10, &state.screen);
+    xTaskCreate(vBatteryTask, "bat", 4096, &state, 9, &state.tBattery);
+
     vTaskDelay(1000 / portTICK_RATE_MS);
 
     printf("Try to wakeup screen..\n");
 
+    xTaskNotify(state.tBattery, 0, eNoAction);
     xTaskNotify(state.screen, 0, eNoAction);
 
     vTaskDelay(1000 / portTICK_RATE_MS);
@@ -108,14 +57,38 @@ void vOSShedulerTask(void *pvParams)
 
     // esp_light_sleep_start();
     uint32_t nv;
+    uint32_t interval = 5000000;
+    struct timeval tv_now;
     while (true)
     {
 
         // M5.Power.lightSleep(5000000, false);
-        esp_sleep_enable_timer_wakeup(5000000);
+        esp_sleep_enable_timer_wakeup(interval);
         esp_light_sleep_start();
+
+        // Begin
+        gettimeofday(&tv_now, NULL);
+        int64_t time_us_b = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
+
+        xTaskNotify(state.tBattery, 0, eNoAction);
         xTaskNotify(state.screen, 0, eNoAction);
+
         xTaskNotifyWait(0x00, ULONG_MAX, &nv, portMAX_DELAY);
+
+        gettimeofday(&tv_now, NULL);
+        int64_t time_us_a = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
+
+        interval = 5000000 - (time_us_a - time_us_b);
+
+        if (interval > 5000000)
+        {
+            interval = 5000000;
+        }
+        else if (interval < 1000000)
+        {
+            interval = 1000000;
+        }
+
         // vTaskDelay(5000 / portTICK_RATE_MS);
     }
 
