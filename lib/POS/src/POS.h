@@ -15,82 +15,72 @@
 #include "Tasks/BatteryTask.h"
 #include "Tasks/ScreenTask.h"
 
+
+#include "Applications/Menu/Menu.h"
 #include "Applications/Applications.h"
+
+#define CYCLE_MS 50
+#define LIGHT_SLEEP_AFTER_S 30
+#define LIGHT_SLEEP_S 10
+#define POWER_OFF_AFTER_S 600
 
 static sState state;
 
+sAppRecord apps;
+sAppRecord current_app;
+
 void vOSShedulerTask(void *pvParams)
 {
+    // == Init board
     M5.begin();
     M5.Rtc.begin();
 
+    // == Start core tasks
     xTaskCreate(vScreenTask, "scr", 4096, &state, 10, &state.screen);
     xTaskCreate(vBatteryTask, "bat", 4096, &state, 9, &state.tBattery);
 
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    // == Set applications
+    // 1. Menu application
+    set_app_menu();
+    state.applications = &app_menu;
 
-    printf("Try to wakeup screen..\n");
-
-    xTaskNotify(state.tBattery, 0, eNoAction);
-    xTaskNotify(state.screen, 0, eNoAction);
-
-    vTaskDelay(1000 / portTICK_RATE_MS);
-
-    M5.Rtc.clearIRQ();
-
-    m5::rtc_time_t t;
-    t.seconds = 5;
-
-    // M5.Rtc.setAlarmIRQ(t);
-    printf("%d\n", M5.Rtc.getIRQstatus() ? 1 : 0);
-
-    vTaskDelay(1000 / portTICK_RATE_MS);
-    //  M5.Power.deepSleep(5000000, false);
-
-    // gpio_set_direction(GPIO_NUM_2, GPIO_MODE_OUTPUT);
-    // gpio_set_level(GPIO_NUM_2, 0);
-
-    // gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
-    // gpio_set_level(GPIO_NUM_5, 0);
-
-    // gpio_set_direction(GPIO_NUM_23, GPIO_MODE_OUTPUT);
-    // gpio_set_level(GPIO_NUM_23, 0);
-
-    // esp_light_sleep_start();
+    // == Configure
     uint32_t nv;
-    uint32_t interval = 5000000;
-    struct timeval tv_now;
+    uint32_t interval = LIGHT_SLEEP_AFTER_S * 1000000;
+
     while (true)
     {
+        // If no app, reset to default == menu app
+        if (state.current_app == nullptr)
+            state.current_app = state.applications; // Menu is first
 
-        // M5.Power.lightSleep(5000000, false);
-        esp_sleep_enable_timer_wakeup(interval);
-        esp_light_sleep_start();
+        // Check how long we have no changes
+        state.uptime = (float)clock() / (float)CLK_TCK;
 
-        // Begin
-        gettimeofday(&tv_now, NULL);
-        int64_t time_us_b = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
+        // Handle
 
+        // Update
         xTaskNotify(state.tBattery, 0, eNoAction);
-        xTaskNotify(state.screen, 0, eNoAction);
+        
 
         xTaskNotifyWait(0x00, ULONG_MAX, &nv, portMAX_DELAY);
 
-        gettimeofday(&tv_now, NULL);
-        int64_t time_us_a = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
+        // Draw
+        xTaskNotify(state.screen, 0, eNoAction);
+        xTaskNotifyWait(0x00, ULONG_MAX, &nv, portMAX_DELAY);
 
-        interval = 5000000 - (time_us_a - time_us_b);
+        // Power off
 
-        if (interval > 5000000)
+        // Wait
+        if ((state.uptime - state.user_action_time) > LIGHT_SLEEP_AFTER_S)
         {
-            interval = 5000000;
+            esp_sleep_enable_timer_wakeup(interval);
+            esp_light_sleep_start();
         }
-        else if (interval < 1000000)
+        else
         {
-            interval = 1000000;
+            vTaskDelay(CYCLE_MS / portTICK_RATE_MS);
         }
-
-        // vTaskDelay(5000 / portTICK_RATE_MS);
     }
 
     vTaskDelete(NULL);

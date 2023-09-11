@@ -1,16 +1,15 @@
 
-#include <SL.h>
+#pragma once
 
-struct sApplicationRecord
+struct sState;
+
+struct sAppRecord
 {
-    void (*app_init_function)(sSL *) =nullptr;
-    void (*app_work_function)(sSL *) =nullptr;
-    void (*app_end_function)(sSL *) =nullptr;
-    void (*app_background_task)(sSL *)=nullptr;
+    bool (*app_handle)(sState *) = nullptr;
+    bool (*app_update)(sState *) = nullptr;
+    bool (*app_draw)(sState *) = nullptr;
+    bool (*app_background_task)(sState *) = nullptr;
 
-    sApplicationRecord *prev = nullptr;
-    sApplicationRecord *next = nullptr;
+    sAppRecord *prev = nullptr;
+    sAppRecord *next = nullptr;
 };
-
-
-

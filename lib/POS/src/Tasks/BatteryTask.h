@@ -11,6 +11,7 @@ static uint32_t bat_notify_value = 0;
 void vBatteryTask(void *vpState)
 {
     sState *pState = (sState *)vpState;
+    
     uint32_t measurements[BAT_ARR_SIZE];
     for (auto idx = 0; idx < BAT_ARR_SIZE; idx++)
         measurements[idx] = 0;
